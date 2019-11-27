@@ -52,7 +52,7 @@ formations = ["technicien d'etudes du batiment en dessin de projet",
               "clea numerique"]
 
 
-@st.cache(persist=True, allow_output_mutation=True)
+@st.cache
 def load_data(formations):
     with st.spinner('Please wait : the app is loading data from www.moncompteformation.gouv.fr'):
         all_form = {}
@@ -147,7 +147,6 @@ def clean_data(df):
                            'Présentiel ou à distance',
                            'Keyword']]
         df_copy = df_copy.sort_values(by='Ville')
-
     return df_copy
 
 def filter(new_df, cities, organism, form, hour_min, distance):
@@ -195,10 +194,55 @@ def show(new_df, mode):
             '''
             st.write(np.round(new_df[new_df['Durée']<140]['Tarif horaire'].mean(), 2),'€')
 
+        if mode=='global':
+            '''
+            **Localisation des formations :**
+            '''
+            # Add GPS infos
+            postal_code = pd.read_csv('postal_code_gps.csv')
+            postal_code['latitude'] = pd.to_numeric(postal_code['latitude'],errors='coerce')
+            postal_code['longitude'] = pd.to_numeric(postal_code['longitude'],errors='coerce')
+            form_presence = new_df[new_df['Code Postal']!='A DISTANCE']
+            form_presence['Code Postal'] = form_presence['Code Postal'].astype('int64')
+            form_presence_by_city = form_presence.groupby("Code Postal").count()
+            form_presence_by_city = form_presence_by_city['Nom']
+            form_presence_by_city.name = 'Nombre de formations'
+            df_final = pd.merge(form_presence_by_city, postal_code, left_on='Code Postal',right_on='CODE POSTAL')
+
+            px.set_mapbox_access_token(open(".mapbox_token").read())
+            carshare = px.data.carshare()
+            fig = px.scatter_mapbox(df_final, lat="latitude", lon="longitude", size="Nombre de formations",
+                              color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=4, hover_name='CODE POSTAL')
+            st.plotly_chart(fig)
+
         '''
-        **Résumé statistique :**
+        **TOP 50 des organismes proposant le plus de formations  :**
         '''
-        st.write(new_df.describe())
+        organism = pd.DataFrame(
+            new_df.groupby(
+                by='Organisme').count()['Nom'].values,
+            index=new_df.groupby(
+                    by='Organisme').count()['Nom'].index,
+            columns=['Nombre'])
+        organisme_100 = organism.sort_values(by='Nombre', ascending=False)[:50]
+        fig = px.bar(x=organisme_100.index, y=organisme_100['Nombre'].values)
+        st.plotly_chart(fig)
+
+        if mode!='city':
+            '''
+            **Répartition présentiel / à distance  :**
+            '''
+            values = [new_df['Présentiel ou à distance'][new_df['Présentiel ou à distance'] == 'Présentiel'].count(
+            ), new_df['Présentiel ou à distance'][new_df['Présentiel ou à distance'] == 'Distance'].count()]
+            fig = go.Figure(
+                data=[
+                    go.Pie(
+                        labels=[
+                            'Présentiel',
+                            'A distance'],
+                        values=values,
+                        hole=.3)])
+            st.plotly_chart(fig)
 
         '''
         **Tarif horaire selon la durée des formations  :**
@@ -225,34 +269,10 @@ def show(new_df, mode):
             range_x=[0,200])
         st.plotly_chart(fig)
 
-        if mode!='city':
-            '''
-            **Répartition présentiel / à distance  :**
-            '''
-            values = [new_df['Présentiel ou à distance'][new_df['Présentiel ou à distance'] == 'Présentiel'].count(
-            ), new_df['Présentiel ou à distance'][new_df['Présentiel ou à distance'] == 'Distance'].count()]
-            fig = go.Figure(
-                data=[
-                    go.Pie(
-                        labels=[
-                            'Présentiel',
-                            'A distance'],
-                        values=values,
-                        hole=.3)])
-            st.plotly_chart(fig)
-
         '''
-        **TOP 50 des organismes proposant le plus de formations  :**
+        **Résumé statistique :**
         '''
-        organism = pd.DataFrame(
-            new_df.groupby(
-                by='Organisme').count()['Nom'].values,
-            index=new_df.groupby(
-                    by='Organisme').count()['Nom'].index,
-            columns=['Nombre'])
-        organisme_100 = organism.sort_values(by='Nombre', ascending=False)[:50]
-        fig = px.bar(x=organisme_100.index, y=organisme_100['Nombre'].values)
-        st.plotly_chart(fig)
+        st.write(new_df.describe())
 
 
 
