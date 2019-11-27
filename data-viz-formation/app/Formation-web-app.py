@@ -6,6 +6,9 @@ import plotly_express as px
 import plotly.graph_objects as go
 import copy
 import math
+from urllib.request import urlopen
+import json
+
 
 
 st.title('Web-app Mon Compte Formation')
@@ -50,7 +53,6 @@ formations = ["technicien d'etudes du batiment en dessin de projet",
               "tosa office et tosa digital",
               "pcie",
               "clea numerique"]
-
 
 @st.cache
 def load_data(formations):
@@ -111,6 +113,25 @@ def check_distance_or_not(str):
     else:
         return 'Présentiel'
 
+@st.cache(persist=True)
+def get_communes():
+    communes = pd.DataFrame()
+    code_dept = []
+    dept = []
+
+    with urlopen('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson') as response:
+        counties = json.load(response)
+
+    for feat in counties['features']:
+        feat['id']=feat['properties']['code']
+        code_dept.append(feat['properties']['code'])
+        dept.append(feat['properties']['nom'])
+
+    communes['Code Dept']=code_dept
+    communes['Département']=dept
+
+    return counties, communes
+
 @st.cache
 def clean_data(df):
     with st.spinner('Please wait : the app is cleaning data'):
@@ -162,10 +183,9 @@ def filter(new_df, cities, organism, form, hour_min, distance):
         filtered_df = filtered_df[filtered_df['Keyword'].isin(form)]
     if distance:
         filtered_df = filtered_df[filtered_df['Ville'] != 'A DISTANCE']
-        mode = 'city'
     return mode, filtered_df
 
-def show(new_df, mode):
+def show(new_df, mode, graph, city_map, details,distance):
     with st.spinner('Please wait : the app is preparing data for visualization'):
         st.write('')
         '''
@@ -183,6 +203,11 @@ def show(new_df, mode):
         '''
         st.write(np.round(new_df['Durée'].mean(), 2), 'heures')
 
+        '''
+        **Tarif moyen des formations :**
+        '''
+        st.write(np.round(new_df['Tarif TTC'].mean(), 2),'€')
+
         if mode=='global':
             '''
             **Tarif horaire moyen des formations longues (ie > 140 heures) :**
@@ -194,24 +219,37 @@ def show(new_df, mode):
             '''
             st.write(np.round(new_df[new_df['Durée']<140]['Tarif horaire'].mean(), 2),'€')
 
-        if mode=='global':
+        if mode!='city' and map:
+
             '''
-            **Localisation des formations :**
+            **Localisation des formations par département:**
             '''
-            # Add GPS infos
+            counties, communes = get_communes()
+            px.set_mapbox_access_token(open(".mapbox_token").read())
+
             postal_code = pd.read_csv('postal_code_gps.csv')
-            postal_code['latitude'] = pd.to_numeric(postal_code['latitude'],errors='coerce')
-            postal_code['longitude'] = pd.to_numeric(postal_code['longitude'],errors='coerce')
+            postal_code = postal_code.set_index('CODE POSTAL')
             form_presence = new_df[new_df['Code Postal']!='A DISTANCE']
             form_presence['Code Postal'] = form_presence['Code Postal'].astype('int64')
             form_presence_by_city = form_presence.groupby("Code Postal").count()
             form_presence_by_city = form_presence_by_city['Nom']
             form_presence_by_city.name = 'Nombre de formations'
-            df_final = pd.merge(form_presence_by_city, postal_code, left_on='Code Postal',right_on='CODE POSTAL')
+            form_by_city = postal_code.join(form_presence_by_city)
+            form_by_city = form_by_city.dropna().reset_index()
 
-            px.set_mapbox_access_token(open(".mapbox_token").read())
-            carshare = px.data.carshare()
-            fig = px.scatter_mapbox(df_final, lat="latitude", lon="longitude", size="Nombre de formations",
+            form_by_dep = form_by_city.groupby('Code Dept').sum().reset_index()
+            form_by_dep = pd.merge(form_by_dep,communes,on='Code Dept')
+
+            fig = go.Figure(go.Choroplethmapbox(geojson=counties, locations=form_by_dep['Code Dept'], z=form_by_dep['Nombre de formations'],colorscale="Geyser",hovertext=form_by_dep['Département']));
+            fig.update_layout(mapbox_style="carto-positron",
+                              mapbox_zoom=4.5, mapbox_center = {"lat": 46.7, "lon": 1.7});
+            fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0});
+            st.plotly_chart(fig)
+
+            '''
+            **Localisation des formations par codes postaux:**
+            '''
+            fig = px.scatter_mapbox(form_by_city, lat="latitude", lon="longitude", size="Nombre de formations",
                               color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=4, hover_name='CODE POSTAL')
             st.plotly_chart(fig)
 
@@ -228,7 +266,7 @@ def show(new_df, mode):
         fig = px.bar(x=organisme_100.index, y=organisme_100['Nombre'].values)
         st.plotly_chart(fig)
 
-        if mode!='city':
+        if mode!='city' and distance==False:
             '''
             **Répartition présentiel / à distance  :**
             '''
@@ -245,35 +283,41 @@ def show(new_df, mode):
             st.plotly_chart(fig)
 
         '''
-        **Tarif horaire selon la durée des formations  :**
-        '''
-        fig = px.scatter(
-            new_df,
-            x='Tarif horaire',
-            y='Durée',
-            color='Ville',
-            hover_name='Organisme',
-            marginal_y="histogram",
-            marginal_x="histogram",
-            range_x=[0,200])
-        st.plotly_chart(fig)
-
-        '''
-        **Distribution des tarifs horaires  :**
-        '''
-        fig = px.histogram(
-            new_df,
-            x="Tarif horaire",
-            color='Ville',
-            hover_data=new_df.columns,
-            range_x=[0,200])
-        st.plotly_chart(fig)
-
-        '''
         **Résumé statistique :**
         '''
         st.write(new_df.describe())
 
+        if graph:
+            '''
+            **Tarif horaire selon la durée des formations  :**
+            '''
+            fig = px.scatter(
+                new_df,
+                x='Tarif horaire',
+                y='Durée',
+                color='Ville',
+                hover_name='Organisme',
+                marginal_y="histogram",
+                marginal_x="histogram",
+                range_x=[0,200])
+            st.plotly_chart(fig)
+
+            '''
+            **Distribution des tarifs horaires  :**
+            '''
+            fig = px.histogram(
+                new_df,
+                x="Tarif horaire",
+                color='Ville',
+                hover_data=new_df.columns,
+                range_x=[0,200])
+            st.plotly_chart(fig)
+
+        if details:
+            '''
+            **Détails des formations:**
+            '''
+            st.write(new_df)
 
 
 #########################################################################
@@ -288,7 +332,7 @@ navigation = st.sidebar.radio("Navigation",('Home','Vue globale', 'Vue personnal
 if navigation=='Home':
     st.write('------------------------')
     '''
-    Analyse statistique des formations proposées sur le site web et l'app mobile Mon Compte Formation.
+    Vision analytique des formations proposées sur le site web et l'app mobile Mon Compte Formation.
 
     Dans la vue globale, les données affichées correspondent à l'intégralité des formations proposées sur l'app Mon Compte Formation pour les mot-clés suivants :
     '''
@@ -301,9 +345,16 @@ if navigation=='Home':
 
 elif navigation=='Vue globale':
     new_df = df.copy()
+    distance = st.sidebar.checkbox('Ne pas inclure les formations à distance')
+    details = st.sidebar.checkbox('Afficher le détails de toutes les formations')
+    map = st.sidebar.checkbox('Afficher les cartes de la répartition des formations en France')
+    graph = st.sidebar.checkbox('Afficher les graphiques des tarifs horaires')
+
     st.write('------------------------')
     st.write("Les données affichées ci-dessous correspondent à l'intégralité des formations proposées sur l'app Mon Compte Formation pour les mot-clés listés (voir onglet Home pour la liste des mots-clés)")
-    show(new_df,'global')
+
+    show(new_df, 'global', graph, map, details,distance)
+
 
 elif navigation=='Vue personnalisée':
     new_df = df.copy()
@@ -312,17 +363,13 @@ elif navigation=='Vue personnalisée':
     form = st.sidebar.multiselect('Types de formations', new_df['Keyword'].unique())
     cities = st.sidebar.multiselect('Villes', new_df['Ville'].unique())
     organism = st.sidebar.multiselect('Organismes de formation', new_df['Organisme'].unique())
-    hour_min = st.sidebar.slider('Durée minimum de la formation (en heures)', math.floor( new_df['Durée'].min()), math.ceil(new_df['Durée'].max()), 140)
-    details = st.sidebar.checkbox('Afficher le détails de toutes les formations')
+    hour_min = st.sidebar.slider('Durée minimum de la formation (en heures)', math.floor( new_df['Durée'].min()), math.ceil(new_df['Durée'].max()), math.floor( new_df['Durée'].min()))
     distance = st.sidebar.checkbox('Ne pas inclure les formations à distance')
+    details = st.sidebar.checkbox('Afficher le détails de toutes les formations')
+    map = st.sidebar.checkbox('Afficher les cartes de la répartition des formations en France')
+    graph = st.sidebar.checkbox('Afficher les graphiques des tarifs horaires')
 
     # Filter the dataframe
     mode, filtered_df = filter(new_df, cities, organism, form, hour_min, distance)
 
-    show(filtered_df, mode)
-
-    if details:
-        '''
-        **Détails des formations:**
-        '''
-        st.write(filtered_df)
+    show(filtered_df, mode, graph, map, details,distance)
