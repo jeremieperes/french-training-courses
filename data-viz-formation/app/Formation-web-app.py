@@ -143,6 +143,8 @@ def clean_data(df):
         df_copy['Durée'] = df_copy['Durée'].fillna(df_copy['Durée'].mean())
         df_copy['Ville'] = df_copy['Ville'].str.upper()
         df_copy["Ville"] = df_copy["Ville"].str.replace('CEDEX', '')
+        df_copy["Ville"] = df_copy["Ville"].str.replace('-', ' ')
+        df_copy["Ville"] = df_copy["Ville"].str.replace("'", ' ')
         df_copy["Ville"] = df_copy["Ville"].str.replace('[0-9]', '')
         df_copy["Ville"] = df_copy["Ville"].str.replace('PARIS.*', 'PARIS')
         df_copy["Ville"] = df_copy["Ville"].str.replace('LYON.*', 'LYON')
@@ -185,7 +187,7 @@ def filter(new_df, cities, organism, form, hour_min, distance):
         filtered_df = filtered_df[filtered_df['Ville'] != 'A DISTANCE']
     return mode, filtered_df
 
-def show(new_df, mode, graph, city_map, details,distance):
+def show(new_df, mode, graph, details,distance):
     with st.spinner('Please wait : the app is preparing data for visualization'):
         st.write('')
         '''
@@ -218,40 +220,6 @@ def show(new_df, mode, graph, city_map, details,distance):
             **Tarif horaire moyen des formations courtes (ie < 140 heures):**
             '''
             st.write(np.round(new_df[new_df['Durée']<140]['Tarif horaire'].mean(), 2),'€')
-
-        if mode!='city' and map:
-
-            '''
-            **Localisation des formations par département:**
-            '''
-            counties, communes = get_communes()
-            px.set_mapbox_access_token(open(".mapbox_token").read())
-
-            postal_code = pd.read_csv('postal_code_gps.csv')
-            postal_code = postal_code.set_index('CODE POSTAL')
-            form_presence = new_df[new_df['Code Postal']!='A DISTANCE']
-            form_presence['Code Postal'] = form_presence['Code Postal'].astype('int64')
-            form_presence_by_city = form_presence.groupby("Code Postal").count()
-            form_presence_by_city = form_presence_by_city['Nom']
-            form_presence_by_city.name = 'Nombre de formations'
-            form_by_city = postal_code.join(form_presence_by_city)
-            form_by_city = form_by_city.dropna().reset_index()
-
-            form_by_dep = form_by_city.groupby('Code Dept').sum().reset_index()
-            form_by_dep = pd.merge(form_by_dep,communes,on='Code Dept')
-
-            fig = go.Figure(go.Choroplethmapbox(geojson=counties, locations=form_by_dep['Code Dept'], z=form_by_dep['Nombre de formations'],colorscale="Geyser",hovertext=form_by_dep['Département']));
-            fig.update_layout(mapbox_style="carto-positron",
-                              mapbox_zoom=4.5, mapbox_center = {"lat": 46.7, "lon": 1.7});
-            fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0});
-            st.plotly_chart(fig)
-
-            '''
-            **Localisation des formations par codes postaux:**
-            '''
-            fig = px.scatter_mapbox(form_by_city, lat="latitude", lon="longitude", size="Nombre de formations",
-                              color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=4, hover_name='CODE POSTAL')
-            st.plotly_chart(fig)
 
         '''
         **TOP 50 des organismes proposant le plus de formations  :**
@@ -319,6 +287,55 @@ def show(new_df, mode, graph, city_map, details,distance):
             '''
             st.write(new_df)
 
+def carto_clean(new_df,counties, communes) :
+    px.set_mapbox_access_token(open(".mapbox_token").read())
+
+    postal_code = pd.read_csv('population.csv')
+    postal_code['Code Postal'] = postal_code['Code Postal'].astype('str')
+    form_presence = new_df[new_df['Code Postal']!='A DISTANCE']
+    form_presence['Code Postal'] = form_presence['Code Postal'].astype('str')
+    form_presence_by_city = form_presence.groupby(["Ville","Code Postal"]).count()
+    form_presence_by_city = form_presence_by_city['Nom']
+    form_presence_by_city.name = 'Nombre de formations'
+    form_presence_by_city=form_presence_by_city.reset_index()
+
+    form_by_city = pd.merge(postal_code,form_presence_by_city,left_on=['Commune','Code Postal'],right_on=["Ville","Code Postal"])
+    form_by_city = form_by_city.dropna()
+
+    form_by_dep = form_by_city.groupby('Code Département').sum().reset_index()
+    form_by_dep = pd.merge(form_by_dep,communes,left_on='Code Département',right_on='Code Dept')
+
+    st.write(form_by_city)
+    return form_by_dep, form_by_city
+
+@st.cache()
+def show_graph_by_city(form_by_city):
+    #population = pd.read_csv('population.csv')
+    #new_form_by_city = pd.merge(population,form_by_city,right_on='Code Postal',left_on='Code Postal')
+    new_form_by_city = form_by_city.copy()
+
+    new_form_by_city['Nombre de formations']=pd.to_numeric(new_form_by_city['Nombre de formations'], errors='coerce')
+
+    form_big_city = new_form_by_city[new_form_by_city['Population']>30000]
+
+    form_big_city = form_big_city.groupby(['Commune','Code Département']).agg({'Population':'max','latitude':'median','longitude':'median','Nombre de formations':'sum'}).reset_index()
+    form_big_city['Formations / 1000 Habitants']=form_big_city['Nombre de formations']/form_big_city["Population"]*1000
+
+    return form_big_city
+
+@st.cache()
+def show_graph_by_dep(form_by_dep):
+    population_dep = pd.read_csv('population_dep.csv')
+    population_dep['Code Dept'] = population_dep['Code Dept'].str.replace('RD','0')
+    new_form_by_dep = pd.merge(population_dep,form_by_dep,on='Code Dept')
+    new_form_by_dep = new_form_by_dep.dropna()
+
+    new_form_by_dep['Nombre de formations']=pd.to_numeric(new_form_by_dep['Nombre de formations'], errors='coerce')
+    new_form_by_dep["Total"]=pd.to_numeric(new_form_by_dep["Total"], errors='coerce')
+
+    new_form_by_dep['Formations / 1000 Habitants']=new_form_by_dep['Nombre de formations']/new_form_by_dep["Total"]*1000
+
+    return new_form_by_dep
 
 #########################################################################
 
@@ -327,7 +344,7 @@ df = aggregate_df(frames_formations)
 df = clean_data(df)
 df.to_csv("formations_extract.csv")
 
-navigation = st.sidebar.radio("Navigation",('Home','Vue globale', 'Vue personnalisée'))
+navigation = st.sidebar.radio("Navigation",('Home','Résumé', 'Vue analytique','Vue cartographique'))
 
 if navigation=='Home':
     st.write('------------------------')
@@ -341,22 +358,23 @@ if navigation=='Home':
     Dans la vue personnalisée, il est possible de filtrer les résultats par type de formation, par ville, par organisme et par durée.
 
     Source des données : https://www.moncompteformation.gouv.fr/
+
+
     '''
 
-elif navigation=='Vue globale':
+elif navigation=='Résumé':
     new_df = df.copy()
     distance = st.sidebar.checkbox('Ne pas inclure les formations à distance')
     details = st.sidebar.checkbox('Afficher le détails de toutes les formations')
-    map = st.sidebar.checkbox('Afficher les cartes de la répartition des formations en France')
     graph = st.sidebar.checkbox('Afficher les graphiques des tarifs horaires')
 
     st.write('------------------------')
     st.write("Les données affichées ci-dessous correspondent à l'intégralité des formations proposées sur l'app Mon Compte Formation pour les mot-clés listés (voir onglet Home pour la liste des mots-clés)")
 
-    show(new_df, 'global', graph, map, details,distance)
+    show(new_df, 'global', graph, details,distance)
 
 
-elif navigation=='Vue personnalisée':
+elif navigation=='Vue analytique':
     new_df = df.copy()
     st.write('------------------------')
     st.write("Les données affichées ci-dessous correspondent aux formations proposées sur l'app Mon Compte Formation qui satisfont aux filtres demandés, pour les mot-clés choisis (voir onglet Home pour la liste des mots-clés)")
@@ -366,10 +384,76 @@ elif navigation=='Vue personnalisée':
     hour_min = st.sidebar.slider('Durée minimum de la formation (en heures)', math.floor( new_df['Durée'].min()), math.ceil(new_df['Durée'].max()), math.floor( new_df['Durée'].min()))
     distance = st.sidebar.checkbox('Ne pas inclure les formations à distance')
     details = st.sidebar.checkbox('Afficher le détails de toutes les formations')
-    map = st.sidebar.checkbox('Afficher les cartes de la répartition des formations en France')
     graph = st.sidebar.checkbox('Afficher les graphiques des tarifs horaires')
 
     # Filter the dataframe
     mode, filtered_df = filter(new_df, cities, organism, form, hour_min, distance)
 
-    show(filtered_df, mode, graph, map, details,distance)
+    show(filtered_df, mode, graph, details,distance)
+
+elif navigation=='Vue cartographique':
+    new_df = df.copy()
+
+    gran = st.sidebar.radio('Granularité', ('Par Département', 'Par Ville'))
+    form = st.sidebar.multiselect('Types de formations', new_df['Keyword'].unique())
+    hour_min = st.sidebar.slider('Durée minimum de la formation (en heures)', math.floor( new_df['Durée'].min()), math.ceil(new_df['Durée'].max()), math.floor( new_df['Durée'].min()))
+
+    counties, communes = get_communes()
+
+    mode, filtered_df = filter(new_df, [], [], form, hour_min, True)
+
+    form_by_dep, form_by_city = carto_clean(filtered_df, counties, communes)
+    st.write('------------------------')
+
+    if gran=='Par Département':
+        new_form_by_dep = show_graph_by_dep(form_by_dep)
+
+        st.write("Les données affichées ci-dessous correspondent à l'intégralité des formations proposées sur l'app Mon Compte Formation pour les mot-clés listés (voir onglet Home pour la liste des mots-clés)")
+
+        '''
+        **Nombre de formations**
+        '''
+        fig = go.Figure(go.Choroplethmapbox(geojson=counties, locations=new_form_by_dep['Code Dept'], z=new_form_by_dep['Nombre de formations'],colorscale="YlGnBu",hovertext=new_form_by_dep['Département']));
+        fig.update_layout(mapbox_style="carto-positron",
+                          mapbox_zoom=4.5, mapbox_center = {"lat": 46.7, "lon": 1.7});
+        fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0});
+        st.plotly_chart(fig)
+
+        '''
+        **Nombre de formations pour 1000 Habitants**
+        '''
+        fig = go.Figure(go.Choroplethmapbox(geojson=counties, locations=new_form_by_dep['Code Dept'], z=new_form_by_dep['Formations / 1000 Habitants'],colorscale="YlGnBu",hovertext=new_form_by_dep['Département']));
+        fig.update_layout(mapbox_style="carto-positron",
+                          mapbox_zoom=4.5, mapbox_center = {"lat": 46.7, "lon": 1.7});
+        fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0});
+        st.plotly_chart(fig)
+
+
+    elif gran=='Par Ville':
+
+        form_big_city = show_graph_by_city(form_by_city)
+
+        st.write("Les données affichées ci-dessous correspondent aux formations proposées dans les **villes de plus de 30.000 habitants** sur l'app Mon Compte Formation pour les mot-clés listés (voir onglet Home pour la liste des mots-clés)")
+
+        '''
+        **Nombre de formations**
+        '''
+        fig = px.scatter_mapbox(form_big_city, lat="latitude", lon="longitude", size="Nombre de formations",
+                          color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=4, hover_name='Commune')
+        st.plotly_chart(fig)
+
+        '''
+        **Nombre de formations pour 1000 habitants**
+        '''
+        fig = px.scatter_mapbox(form_big_city, lat="latitude", lon="longitude", size="Formations / 1000 Habitants",
+                  color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=4, hover_name='Commune')
+        st.plotly_chart(fig)
+
+        '''
+        **Top 100 des villes entre 40 et 80.000 habitants où le nombre de formations pour 1000 habitants est le plus faible**
+        '''
+        form_city_targeted = form_big_city[(form_big_city['Population']>40000) & (form_big_city['Population']<120000) ]
+        st.write(form_city_targeted.sort_values(by='Formations / 1000 Habitants')[['Commune','Nombre de formations','Population']].head(100))
+        fig = px.scatter_mapbox(form_city_targeted.sort_values(by='Formations / 1000 Habitants').head(100), lat="latitude", lon="longitude", size="Formations / 1000 Habitants",
+                          color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=4, hover_name='Commune')
+        st.plotly_chart(fig)
