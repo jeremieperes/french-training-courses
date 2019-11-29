@@ -435,14 +435,14 @@ elif navigation=='Vue cartographique':
         **Nombre de formations**
         '''
         fig = px.scatter_mapbox(form_big_city, lat="latitude", lon="longitude", size="Nombre de formations",
-                          color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=4, hover_name='Commune')
+                          color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=3.7, hover_name='Commune')
         st.plotly_chart(fig)
 
         '''
         **Nombre de formations pour 1000 habitants**
         '''
         fig = px.scatter_mapbox(form_big_city, lat="latitude", lon="longitude", size="Formations / 1000 Habitants",
-                  color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=4, hover_name='Commune')
+                  color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=3.7, hover_name='Commune')
         st.plotly_chart(fig)
 
         '''
