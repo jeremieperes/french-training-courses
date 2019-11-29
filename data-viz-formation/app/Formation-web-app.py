@@ -230,8 +230,8 @@ def show(new_df, mode, graph, details,distance):
             index=new_df.groupby(
                     by='Organisme').count()['Nom'].index,
             columns=['Nombre'])
-        organisme_100 = organism.sort_values(by='Nombre', ascending=False)[:50]
-        fig = px.bar(x=organisme_100.index, y=organisme_100['Nombre'].values)
+        organisme_50 = organism.sort_values(by='Nombre', ascending=False)[:50]
+        fig = px.bar(x=organisme_50.index, y=organisme_50['Nombre'].values)
         st.plotly_chart(fig)
 
         if mode!='city' and distance==False:
@@ -292,48 +292,44 @@ def carto_clean(new_df,counties, communes) :
 
     postal_code = pd.read_csv('population.csv')
     postal_code['Code Postal'] = postal_code['Code Postal'].astype('str')
+    postal_code['Code Postal'] = postal_code['Code Postal'].str.replace('R','0')
+    postal_code['Code Département'] = postal_code['Code Département'].astype('str')
+    postal_code['Code Département'] = postal_code['Code Département'].str.replace('R','0')
     form_presence = new_df[new_df['Code Postal']!='A DISTANCE']
     form_presence['Code Postal'] = form_presence['Code Postal'].astype('str')
     form_presence_by_city = form_presence.groupby(["Ville","Code Postal"]).count()
     form_presence_by_city = form_presence_by_city['Nom']
     form_presence_by_city.name = 'Nombre de formations'
     form_presence_by_city=form_presence_by_city.reset_index()
-
     form_by_city = pd.merge(postal_code,form_presence_by_city,left_on=['Commune','Code Postal'],right_on=["Ville","Code Postal"])
     form_by_city = form_by_city.dropna()
 
     form_by_dep = form_by_city.groupby('Code Département').sum().reset_index()
     form_by_dep = pd.merge(form_by_dep,communes,left_on='Code Département',right_on='Code Dept')
 
-    st.write(form_by_city)
     return form_by_dep, form_by_city
 
 @st.cache()
 def show_graph_by_city(form_by_city):
-    #population = pd.read_csv('population.csv')
-    #new_form_by_city = pd.merge(population,form_by_city,right_on='Code Postal',left_on='Code Postal')
+
     new_form_by_city = form_by_city.copy()
 
     new_form_by_city['Nombre de formations']=pd.to_numeric(new_form_by_city['Nombre de formations'], errors='coerce')
 
-    form_big_city = new_form_by_city[new_form_by_city['Population']>30000]
-
-    form_big_city = form_big_city.groupby(['Commune','Code Département']).agg({'Population':'max','latitude':'median','longitude':'median','Nombre de formations':'sum'}).reset_index()
+    form_big_city = new_form_by_city.groupby(['Commune','Code Département']).agg({'Population':'sum','latitude':'median','longitude':'median','Nombre de formations':'sum'}).reset_index()
+    form_big_city = form_big_city[form_big_city['Population']>30000]
     form_big_city['Formations / 1000 Habitants']=form_big_city['Nombre de formations']/form_big_city["Population"]*1000
+
 
     return form_big_city
 
 @st.cache()
 def show_graph_by_dep(form_by_dep):
-    population_dep = pd.read_csv('population_dep.csv')
-    population_dep['Code Dept'] = population_dep['Code Dept'].str.replace('RD','0')
-    new_form_by_dep = pd.merge(population_dep,form_by_dep,on='Code Dept')
-    new_form_by_dep = new_form_by_dep.dropna()
-
+    new_form_by_dep=form_by_dep.copy()
     new_form_by_dep['Nombre de formations']=pd.to_numeric(new_form_by_dep['Nombre de formations'], errors='coerce')
-    new_form_by_dep["Total"]=pd.to_numeric(new_form_by_dep["Total"], errors='coerce')
+    new_form_by_dep["Population"]=pd.to_numeric(new_form_by_dep["Population"], errors='coerce')
 
-    new_form_by_dep['Formations / 1000 Habitants']=new_form_by_dep['Nombre de formations']/new_form_by_dep["Total"]*1000
+    new_form_by_dep['Formations / 1000 Habitants']=new_form_by_dep['Nombre de formations']/new_form_by_dep["Population"]*1000
 
     return new_form_by_dep
 
@@ -450,10 +446,7 @@ elif navigation=='Vue cartographique':
         st.plotly_chart(fig)
 
         '''
-        **Top 100 des villes entre 40 et 80.000 habitants où le nombre de formations pour 1000 habitants est le plus faible**
+        **Top 50 des villes entre 40 et 80.000 habitants où le nombre de formations pour 1000 habitants est le plus faible**
         '''
         form_city_targeted = form_big_city[(form_big_city['Population']>40000) & (form_big_city['Population']<120000) ]
-        st.write(form_city_targeted.sort_values(by='Formations / 1000 Habitants')[['Commune','Nombre de formations','Population']].head(100))
-        fig = px.scatter_mapbox(form_city_targeted.sort_values(by='Formations / 1000 Habitants').head(100), lat="latitude", lon="longitude", size="Formations / 1000 Habitants",
-                          color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=4, hover_name='Commune')
-        st.plotly_chart(fig)
+        st.write(form_city_targeted.sort_values(by='Formations / 1000 Habitants')[['Commune','Nombre de formations','Population']].head(50))
