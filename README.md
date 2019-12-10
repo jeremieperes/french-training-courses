@@ -26,14 +26,14 @@ streamlit run app/Formation-web-app.py
 
 * KPIs
 
-![Vue Résumé](images/Résumé.png)
+![Vue Résumé](images/Resume.png)
 ![Vue analytique](images/Vue-analytique.png)
 
 * Filtered View
 
-![Vue analytique filtrée](images/Vue-filtrée.png)
+![Vue analytique filtrée](images/Vue-filtre.png)
 
 * Cartographic View
 
-![Vue cartographique par département](images/Vue-carto-département.png)
+![Vue cartographique par département](images/Vue-carto-departement.png)
 ![Vue cartographique par ville](images/Vue-carto-ville.png)
