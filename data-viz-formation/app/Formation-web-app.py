@@ -9,6 +9,7 @@ import math
 from urllib.request import urlopen
 import json
 import re
+import time
 
 st.title('Web-app Mon Compte Formation')
 
@@ -93,39 +94,44 @@ def load_data(formations):
         }
 
 
-        for formation in formations:
-            all_form_city = {}
-            for code in cities:
-                data1 = '{"quoi":"%s","ou":{"codePostal":"%s","type":"CP","modality":"0"},"nombreOccurences":10000,"debutPagination":1,"sort":"DISTANCE"}' % (formation, code)
+        my_bar = st.progress(0)
+        for counter, formation in enumerate(formations):
+            with st.spinner('Loading data for the keyword '+ formation.upper()):
+                all_form_city = {}
+                for code in cities:
+                    data1 = '{"quoi":"%s","ou":{"codePostal":"%s","type":"CP","modality":"0"},"nombreOccurences":10000,"debutPagination":1,"sort":"DISTANCE"}' % (formation, code)
 
-                response1 = requests.post(
+                    response1 = requests.post(
+                        'https://www.moncompteformation.gouv.fr/espace-prive/sl6-portail-web/public/formations',
+                        headers=headers,
+                        data=data1)
+
+                    all_form_city[code] = response1.json()["item"]
+
+                data2 = '{"quoi":"%s","ou":{"modality":"2"},"nombreOccurences":10000,"debutPagination":1,"sort":"SCORE"}' % formation
+
+                response2 = requests.post(
                     'https://www.moncompteformation.gouv.fr/espace-prive/sl6-portail-web/public/formations',
                     headers=headers,
-                    data=data1)
+                    data=data2)
 
-                all_form_city[code] = response1.json()["item"]
+                all_form_city['distance'] = response2.json()["item"]
 
-            data2 = '{"quoi":"%s","ou":{"modality":"2"},"nombreOccurences":10000,"debutPagination":1,"sort":"SCORE"}' % formation
+                df = pd.DataFrame()
+                for dict_city in all_form_city.values():
+                    if len(dict_city)!=0:
+                        df_city = pd.DataFrame.from_dict(dict_city)
+                        df_city = pd.concat([df_city.drop(['id'], axis=1), df_city['id'].apply(pd.Series)], axis=1)
+                        df = pd.concat([df, df_city])
 
-            response2 = requests.post(
-                'https://www.moncompteformation.gouv.fr/espace-prive/sl6-portail-web/public/formations',
-                headers=headers,
-                data=data2)
+                if len(df)!=0:
+                    df = df.drop_duplicates(subset=['title', 'organism', 'codePostal', 'ville', 'duration', 'prixTotalTTC',"numeroFormation","numeroAction"])
+                    frames[formation] = df
+                    formations_new.append(formation)
 
-            all_form_city['distance'] = response2.json()["item"]
 
-            df = pd.DataFrame()
-            for dict_city in all_form_city.values():
-                if len(dict_city)!=0:
-                    df_city = pd.DataFrame.from_dict(dict_city)
-                    df_city = pd.concat([df_city.drop(['id'], axis=1), df_city['id'].apply(pd.Series)], axis=1)
-                    df = pd.concat([df, df_city])
-
-            if len(df)!=0:
-                df = df.drop_duplicates(subset=['title', 'organism', 'codePostal', 'ville', 'duration', 'prixTotalTTC',"numeroFormation","numeroAction"])
-                frames[formation] = df
-                formations_new.append(formation)
-
+            my_bar.progress((counter + 1)/len(formations))
+    st.success('Data loaded !')
     return frames, formations_new
 
 @st.cache
