@@ -11,7 +11,7 @@ import json
 import re
 import time
 
-st.title('Web-app Mon Compte Formation')
+st.title('Web app Mon Compte Formation')
 
 # Liste de toutes les formations qui nous intéressent
 formations = ["dessinateur btp",
