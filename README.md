@@ -8,7 +8,7 @@ Data source : https://www.moncompteformation.gouv.fr/
 
 1. Clone GitHub repo
 ```
-git clone 'repo/url'
+git clone https://github.com/jeremieperes/french-training-courses
 ```
 2. Install required python packages :
 ```
@@ -24,16 +24,16 @@ streamlit run app/Formation-web-app.py
 
 ## Screenshots
 
-* KPIs
+* **KPIs**
 
 ![Vue Résumé](images/Resume.png)
 ![Vue analytique](images/Vue-analytique.png)
 
-* Filtered View
+* **Filtered View**
 
 ![Vue analytique filtrée](images/Vue-filtre.png)
 
-* Cartographic View
+* **Cartographic View**
 
 ![Vue cartographique par département](images/Vue-carto-departement.png)
 ![Vue cartographique par ville](images/Vue-carto-ville.png)
