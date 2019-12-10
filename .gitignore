@@ -241,5 +241,5 @@ dmypy.json
 
 .mapbox_token
 
-.command
-.bat
+MacOS_RUN.command
+Windows_RUN.bat
