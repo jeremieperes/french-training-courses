@@ -527,7 +527,7 @@ def show_graph_by_dep(form_by_dep):
 ###############################    Main    ##############################
 #########################################################################
 
-reload = st.sidebar.button("Cliquer pour mettre à jour les données")
+reload = st.sidebar.button("Cliquer pour MAJ les données")
 
 if reload:
     frames_formations, formations_new = load_data(formations)
