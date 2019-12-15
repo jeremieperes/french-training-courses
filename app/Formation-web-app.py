@@ -10,6 +10,7 @@ from urllib.request import urlopen
 import json
 import re
 import time
+import os.path
 
 st.title('Web app Mon Compte Formation')
 
@@ -67,8 +68,6 @@ cities = ["44000", "75001", "33000", "69001", "72000", "13001", "54000", "59000"
            "31000", "87000", "18000","20000","10000","14000","35000","80000",
            "37000","21000","67000","17000","63000","38000","06000","34000",
            "64100","15000"]
-
-
 
 @st.cache(suppress_st_warning=True)
 def load_data(formations):
@@ -525,29 +524,29 @@ def show_graph_by_dep(form_by_dep):
     return new_form_by_dep
 
 #########################################################################
+###############################    Main    ##############################
+#########################################################################
 
-frames_formations, formations_new = load_data(formations)
-df = aggregate_df(frames_formations)
-df = clean_data(df)
-df.to_csv("formations_extract.csv")
+reload = st.sidebar.button("Cliquer pour mettre à jour les données")
+
+if reload:
+    frames_formations, formations_new = load_data(formations)
+    df = aggregate_df(frames_formations)
+    df = clean_data(df)
+    df.to_csv("formations_extract.csv", index=False)
+else:
+    df = pd.read_csv("formations_extract.csv")
 
 navigation = st.sidebar.radio("Navigation",('Home','Résumé', 'Vue analytique','Vue cartographique'))
 
 if navigation=='Home':
     st.write('------------------------')
-    '''
-    Vision analytique des formations proposées sur le site web et l'app mobile Mon Compte Formation.
-
-    Dans la vue globale, les données affichées correspondent à l'intégralité des formations proposées sur l'app Mon Compte Formation pour les mot-clés suivants :
-    '''
+    st.write("Vision analytique des formations proposées sur le site web et l'app mobile Mon Compte Formation.")
+    st.write('Dernière mise à jour des données ' + time.strftime('le %d/%m/%Y à %Hh%M', time.gmtime(os.path.getmtime("formations_extract.csv"))))
+    st.write("*Vous pouvez mettre à jour les données en cliquant sur le bouton dans la barre latérale. Attention : le chargement met une vingtaine de minutes.*")
+    st.write("Les données affichées correspondent à l'intégralité des formations proposées sur l'app Mon Compte Formation pour les mot-clés suivants : ")
     st.write(formations)
-    '''
-    Dans la vue personnalisée, il est possible de filtrer les résultats par type de formation, par ville, par organisme et par durée.
-
-    Source des données : https://www.moncompteformation.gouv.fr/
-
-
-    '''
+    st.write("Source des données : https://www.moncompteformation.gouv.fr/")
 
 elif navigation=='Résumé':
     new_df = df.copy()
