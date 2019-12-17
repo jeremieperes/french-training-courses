@@ -542,7 +542,6 @@ navigation = st.sidebar.radio("Navigation",('Home','Résumé', 'Vue analytique',
 if navigation=='Home':
     st.write('------------------------')
     st.write("Vision analytique des formations proposées sur le site web et l'app mobile Mon Compte Formation.")
-    st.write('Dernière mise à jour des données ' + time.strftime('le %d/%m/%Y à %Hh%M', time.gmtime(os.path.getmtime("formations_extract.csv"))))
     st.write("*Vous pouvez mettre à jour les données en cliquant sur le bouton dans la barre latérale. Attention : le chargement met une vingtaine de minutes.*")
     st.write("Les données affichées correspondent à l'intégralité des formations proposées sur l'app Mon Compte Formation pour les mot-clés suivants : ")
     st.write(formations)
