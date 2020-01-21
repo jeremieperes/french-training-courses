@@ -15,7 +15,11 @@ git clone https://github.com/jeremieperes/french-training-courses
 cd path/to/project/directory
 pip install -r requirements.txt
 ```
-3. Run the streamlit command line
+3. Sign up on [Mapbox](https://account.mapbox.com/) and create a token
+
+4. Create a file ".mapbox_token" and copy your Mapbox token in it. Put this file in the root folder of the repo.
+
+4. Run the streamlit command line
 ```
 streamlit run app/Formation-web-app.py
 ```
