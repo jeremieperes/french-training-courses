@@ -239,7 +239,5 @@ dmypy.json
 
 # End of https://www.gitignore.io/api/macos,python,pycharm,jupyternotebooks
 
-.mapbox_token
-
 MacOS_RUN.command
 Windows_RUN.bat
