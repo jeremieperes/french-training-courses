@@ -133,7 +133,7 @@ def load_data(formations):
     st.success('Data loaded !')
     return frames, formations_new
 
-@st.cache()
+@st.cache
 def aggregate_df(frames):
     with st.spinner('Please wait : the app is aggregating data'):
         df = pd.DataFrame()
@@ -152,7 +152,7 @@ def check_distance_or_not(str):
     else:
         return 'Présentiel'
 
-@st.cache()
+@st.cache
 def get_communes():
     communes = pd.DataFrame()
     code_dept = []
@@ -171,7 +171,7 @@ def get_communes():
 
     return counties, communes
 
-@st.cache()
+@st.cache
 def clean_data(df):
     with st.spinner('Please wait : the app is cleaning data'):
         df_copy = df.copy()
@@ -499,7 +499,7 @@ def carto_clean(new_df,counties, communes) :
 
     return form_by_dep, form_by_city
 
-@st.cache()
+@st.cache
 def show_graph_by_city(form_by_city):
 
     new_form_by_city = form_by_city.copy()
@@ -513,7 +513,7 @@ def show_graph_by_city(form_by_city):
 
     return form_big_city
 
-@st.cache()
+@st.cache
 def show_graph_by_dep(form_by_dep):
     new_form_by_dep=form_by_dep.copy()
     new_form_by_dep['Nombre de formations']=pd.to_numeric(new_form_by_dep['Nombre de formations'], errors='coerce')
