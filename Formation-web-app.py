@@ -152,7 +152,7 @@ def check_distance_or_not(str):
     else:
         return 'Présentiel'
 
-@st.cache(persist=True)
+@st.cache
 def get_communes():
     communes = pd.DataFrame()
     code_dept = []
