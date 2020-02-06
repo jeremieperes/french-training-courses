@@ -133,7 +133,7 @@ def load_data(formations):
     st.success('Data loaded !')
     return frames, formations_new
 
-@st.cache
+@st.cache()
 def aggregate_df(frames):
     with st.spinner('Please wait : the app is aggregating data'):
         df = pd.DataFrame()
@@ -152,7 +152,7 @@ def check_distance_or_not(str):
     else:
         return 'Présentiel'
 
-@st.cache
+@st.cache()
 def get_communes():
     communes = pd.DataFrame()
     code_dept = []
@@ -171,7 +171,7 @@ def get_communes():
 
     return counties, communes
 
-@st.cache
+@st.cache()
 def clean_data(df):
     with st.spinner('Please wait : the app is cleaning data'):
         df_copy = df.copy()
